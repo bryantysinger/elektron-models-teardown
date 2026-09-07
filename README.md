@@ -1,4 +1,4 @@
-# elektron-model-firmware
+# elektron-models-teardown
 
 Tools and findings from analysing the firmware of the Elektron Model:Samples
 and Model:Cycles.

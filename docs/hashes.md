@@ -4,6 +4,15 @@ SHA-256 of sections extracted with `elektron-firmware-tool` from stock
 Elektron firmware. No binaries are distributed; these let you confirm you
 are working from the same bytes.
 
+All values are for **OS 1.13** on both devices. Other OS versions will hash
+differently. Elektron's download page carries only current firmware, so 1.13
+may not be obtainable later.
+
+## Source firmware (.syx as downloaded from Elektron)
+
+    e11859b68deb7e5e3fe86ab32581212093849c4be5d3950add011eac398a2ce8  model-samples_OS1_13.syx
+    44fe586269631a0ca7da25a3383fc6733c314809505fc3cc52f1e0ed9800640c  model-cycles_OS1_13.syx
+
 ## Model:Samples OS 1.13
 
     97afe38b721d1396028662a4a3c30a131053779cae0069792b2a92b69b9db950  section_2_DSP.bin
