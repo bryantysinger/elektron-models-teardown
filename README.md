@@ -46,7 +46,14 @@ Flashing firmware can brick hardware and destroy data. Read this section.
   built. `scripts/setup.sh` will clone and build it if you do not have it.
 - An m68k/ColdFire `objdump`. Any of `m68k-linux-gnu-objdump`,
   `m68k-elf-objdump`, or `m68k-unknown-elf-objdump` works. It must support the
-  `m68k:547x` machine variant; `setup.sh` checks and warns if not.
+  `m68k:547x` machine variant.
+  - Debian/Ubuntu: `apt install binutils-m68k-linux-gnu`
+  - macOS: `brew install m68k-elf-binutils`
+  - Note that `setup.sh`'s ColdFire check gives a **false negative on binutils
+    2.42**. It greps `objdump --info` for `547`, but on that version `--info`
+    lists BFD targets rather than architectures; the architecture list is in
+    `--help`. If your objdump appears in `objdump --help | grep 547x`, the
+    warning is spurious and the disassembly is correct.
 - Python 3, bash, make.
 
 ## Setup
@@ -67,6 +74,12 @@ to reuse an existing `elektron-firmware-tool` build from an octabam checkout.
 
 `fw/` and `out/` are gitignored. Everything in `out/` is reproducible from a
 `.syx` plus these scripts.
+
+`scripts/disasm.sh` defaults to stripping a 4-byte header, which is correct
+for section 2 and **wrong for section 3**, whose header is 16 bytes. For
+section 3 pass the base and header length explicitly:
+
+    ./scripts/disasm.sh out/sections/<tag>/section_3_MAIN_OS.bin 0x40000410 16
 
 ---
 
@@ -129,9 +142,11 @@ which warns that some OS upgrades also upgrade the bootstrap on first restart.
 The pool is preceded by a panel inventory: `ENCODER LEVEL`, `ENCODER A`..`H`,
 `FUNCTION`, `TRACK`, `PATTERN`, `BANK`, `TEMPO`, `RECORD`, `PLAY`, `STOP`,
 `PAGE`, `KICK`, `SNARE`, `TOM`, `CLAP`, `COWBELL`, `CLOSED HAT`, `OPEN HAT`,
-`CYMBAL`, `MIDI A`..`H`. Purpose unconfirmed. Elektron state that TEST mode is
-not available on these two devices, so if this is a factory test it is not
-user-reachable.
+`CYMBAL`, `MIDI A`..`H`. A matching factory test suite does exist in section 3
+(`UITestView`, `EncoderTestView`, with prompts such as `UI TEST (ENCODER)`,
+`PRESS SHOWN PAD 3 TIMES` and `TESTING COMPLETE`), so this is a test
+inventory. Whether either is reachable on a shipping unit is unknown;
+Elektron state that TEST mode is not available on these two devices.
 
 **Device identity is a single byte at `0x80003899`**: `0x0F` on the
 Model:Samples, `0x11` on the Model:Cycles.
@@ -145,9 +160,31 @@ and `0x80005960` remain unexplained.
 
 ### Section 3 (MAIN OS) — the application
 
-ColdFire, based at `0x40000000`. First code word after a 4-byte header is
-`46FC 2700` (`move #0x2700,%sr`), a reset entry. This is where the sequencer,
-UI, sound engines and the global delay and reverb live. Largely unexplored.
+ColdFire, based at **0x40000400** behind a **16-byte header** whose first
+longword is the entry point, `0x400004E8`. The `46FC 2700` at 0x40000410 is an
+exception handler, not a reset entry.
+
+Startup sets the stack to 0x48000000, configures GPIO, copies two initialised
+data blobs out of the image tail into the same 64K SRAM the bootstrap uses,
+zeroes BSS from 0x401A05A0 to 0x4211F510, enables the cache, and calls `main`
+at **0x400CABD4**. Because the image tail is reused as BSS, code appended past
+the end of the image is zeroed during startup; a patch must either use
+existing slack or move the BSS start, which is a single immediate at
+0x400004BA.
+
+The application is **C++ built with GCC with RTTI left in**, so roughly 407
+class names are recoverable from the string pool, including a `ModelSeries`
+namespace with versioned storage structs. Parameters are described by a table
+of 56-byte descriptors at **0x40109048** (0x4010DDEC on the Cycles) carrying
+ranges, defaults, MIDI CC assignments and a cross-device parameter id.
+
+Differencing the two devices at instruction level puts the **shared audio
+core at 0x40054000–0x40058600** and the **Samples-specific engine at
+0x400A1000–0x400A7FFF**. The sequencer, UI, sound engines and the global
+delay and reverb all live in section 3.
+
+Full map, field layouts, gain paths and per-claim confidence:
+**`docs/section3-map.md`**.
 
 ---
 
@@ -211,4 +248,5 @@ the behaviour either way.
 - `elektron-firmware-tool` is by mischa85:
   https://github.com/mischa85/elektron-firmware-tool
 - Section 2 analysis, load address, and the device-id and bootstrap findings
-  are original to this repo.
+  are original to this repo. Section 3 mapping is likewise original; see
+  `docs/section3-map.md`.
