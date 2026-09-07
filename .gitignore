@@ -1,0 +1,4 @@
+fw/*.syx
+out/
+vendor/
+.DS_Store
