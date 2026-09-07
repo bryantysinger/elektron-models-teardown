@@ -102,15 +102,22 @@ configuration, not two separate products.
 
 Not a DSP image and not audio code. A 4-byte big-endian payload length, then
 the image loads at **0x80000400**. The first two longwords there are an m68k
-reset pair: initial SP `0x80010000`, initial PC `0x8000116C`.
+reset pair: initial SP `0x80010000`, initial PC `0x8000116C`. The load address
+is confirmed by the code itself: startup programs the ColdFire internal SRAM
+base register with `(0x80000400 & 0xFFFF0000) | 0x235`, placing the SRAM at
+0x80000000.
 
 Roughly 21.5 KB of ColdFire code, about 4 KB of data, then a short code tail.
 It contains **no MAC instructions**, two `mulsl`, one `muluw` and six `divuw`
 in total, so it cannot be doing signal processing. Calls are overwhelmingly
 indirect (268 through address registers against 89 absolute), and the dominant
 peripheral is the ColdFire DSPI at `0xFC05C000` with a byte-at-a-time SPI read
-loop. It sets up FlexBus chip selects and a memory controller, and manages the
-cache with `movec`/`cpushl`.
+loop. Startup configures external bus chip selects and a clock or PLL divider,
+programs RAMBAR1, relocates a 342-byte position-independent block from
+0x80006A8C to 0x8000F000, and fills all 256 exception vectors with a bare
+`rte` at 0x80000410. The relocated block holds the SPI reader, which is why
+the image has a code tail after its data region, and why references to
+0x8000F000-0x8000F010 are internal rather than external.
 
 Its string pool at `0x80006460` settles the question: `BOOTSTRAP UPGRADE`,
 `CONNECT POWER ADAPTER`, `AND RESTART`, `DO NOT TURN OFF!`, `UPGRADING...`,
